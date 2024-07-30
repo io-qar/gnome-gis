@@ -1,0 +1,6 @@
+data/org.gnome.gis.desktop.in
+data/org.gnome.gis.metainfo.xml.in
+data/org.gnome.gis.gschema.xml
+src/main.c
+src/gis-window.c
+src/gis-window.ui

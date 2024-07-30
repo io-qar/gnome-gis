@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="gis">
+	<schema id="org.gnome.gis" path="/org/gnome/gis/">
+		<key name="window-width" type="i">
+      <default>1920</default>
+    </key>
+    <key name="window-height" type="i">
+      <default>1800</default>
+    </key>
+		<key name="window-maximized" type="b">
+			<default>true</default>
+		</key>
+	</schema>
+</schemalist>
+

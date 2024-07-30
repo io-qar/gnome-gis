@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=gis
+Exec=gis
+Icon=org.gnome.gis
+Terminal=false
+Type=Application
+Categories=GTK;
+StartupNotify=true
