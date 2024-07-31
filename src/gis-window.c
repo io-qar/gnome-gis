@@ -31,6 +31,7 @@ struct _GisWindow
 	AdwHeaderBar        *header_bar;
 	GtkTextView *main_text_view;
 	GtkButton *open_button;
+        AdwToastOverlay *toast_overlay;
 };
 
 G_DEFINE_FINAL_TYPE (GisWindow, gis_window, ADW_TYPE_APPLICATION_WINDOW)
@@ -44,23 +45,53 @@ open_file_complete (GObject *src_obj, GAsyncResult *res, GisWindow *self)
         g_autoptr (GError) err = NULL;
 
         g_file_load_contents_finish (file, res, &contents, &length, NULL, &err);
-        if (err != NULL)
-                {
-                        g_printerr ("Unable to open '%s': %s\n", g_file_peek_path (file), err->message);
-                        return;
-                }
+        g_autofree char *display_name = NULL;
+        g_autoptr (GFileInfo) info = g_file_query_info (file,
+                                                        "standard::display-name",
+                                                        G_FILE_QUERY_INFO_NONE,
+                                                        NULL,
+                                                        NULL);
+        if (info != NULL)
+        {
+                display_name = g_strdup (g_file_info_get_attribute_string (info, "standard::display-name"));
+        }
+        else
+        {
+                display_name = g_file_get_basename (file);
+        }
 
+        if (err != NULL)
+        {
+                g_autofree char *msg = g_strdup_printf ("Unable to open “%s”", display_name);
+                adw_toast_overlay_add_toast (self->toast_overlay, adw_toast_new (msg));
+                return;
+        }
         if (!g_utf8_validate (contents, length, NULL))
-                {
-                        g_printerr ("Unable to load the contents of '%s':\nthe file is not encoded with UTF-8\n", g_file_peek_path (file));
-                        return;
-                }
+        {
+                g_autofree char *msg = g_strdup_printf ("Invalid text encoding for “%s”", display_name);
+                adw_toast_overlay_add_toast (self->toast_overlay, adw_toast_new (msg));
+                return;
+        }
+        if (err != NULL)
+        {
+                g_printerr ("Unable to open '%s': %s\n", g_file_peek_path (file), err->message);
+                return;
+        }
+        if (!g_utf8_validate (contents, length, NULL))
+        {
+                g_printerr ("Unable to load the contents of '%s':\nthe file is not encoded with UTF-8\n", g_file_peek_path (file));
+                return;
+        }
+
         GtkTextBuffer *buf = gtk_text_view_get_buffer (self->main_text_view);
         gtk_text_buffer_set_text (buf, contents, length);
 
         GtkTextIter start;
         gtk_text_buffer_get_start_iter (buf, &start);
         gtk_text_buffer_place_cursor (buf, &start);
+
+        g_autofree char *msg = g_strdup_printf ("Opened “%s”", display_name);
+        adw_toast_overlay_add_toast (self->toast_overlay, adw_toast_new (msg));
 }
 
 static void
@@ -107,6 +138,7 @@ gis_window_class_init (GisWindowClass *klass)
 	gtk_widget_class_bind_template_child (widget_class, GisWindow, header_bar);
 	gtk_widget_class_bind_template_child (widget_class, GisWindow, main_text_view);
 	gtk_widget_class_bind_template_child (widget_class, GisWindow, open_button);
+        gtk_widget_class_bind_template_child (widget_class, GisWindow, toast_overlay);
 }
 
 static void
@@ -121,9 +153,9 @@ gis_window_init (GisWindow *self)
         g_settings_bind (self->settings, "window-width",
                    G_OBJECT (self), "default-width",
                    G_SETTINGS_BIND_DEFAULT);
-  g_settings_bind (self->settings, "window-height",
+        g_settings_bind (self->settings, "window-height",
                    G_OBJECT (self), "default-height",
                    G_SETTINGS_BIND_DEFAULT);
-
         g_settings_bind (self->settings, "window-maximized", G_OBJECT (self), "maximized", G_SETTINGS_BIND_DEFAULT);
 }
+

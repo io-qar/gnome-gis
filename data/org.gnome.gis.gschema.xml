@@ -5,11 +5,14 @@
       <default>1920</default>
     </key>
     <key name="window-height" type="i">
-      <default>1800</default>
+      <default>1080</default>
     </key>
 		<key name="window-maximized" type="b">
 			<default>true</default>
 		</key>
+    <key name="dark-mode" type="b">
+      <default>false</default>
+    </key>
 	</schema>
 </schemalist>
 

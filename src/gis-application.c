@@ -26,6 +26,7 @@
 struct _GisApplication
 {
 	AdwApplication parent_instance;
+        GSettings      *settings;
 };
 
 G_DEFINE_FINAL_TYPE (GisApplication, gis_application, ADW_TYPE_APPLICATION)
@@ -40,6 +41,14 @@ gis_application_new (const char        *application_id,
 	                     "application-id", application_id,
 	                     "flags", flags,
 	                     NULL);
+}
+
+static void
+gis_application_dispose (GObject *gobject)
+{
+        GisApplication *self = GIS_APPLICATION (gobject);
+        g_clear_object (&self->settings);
+        G_OBJECT_CLASS (gis_application_parent_class)->dispose (gobject);
 }
 
 static void
@@ -63,8 +72,9 @@ static void
 gis_application_class_init (GisApplicationClass *klass)
 {
 	GApplicationClass *app_class = G_APPLICATION_CLASS (klass);
-
 	app_class->activate = gis_application_activate;
+        GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
+        gobject_class->dispose = gis_application_dispose;
 }
 
 static void
@@ -80,7 +90,7 @@ gis_application_about_action (GSimpleAction *action,
 
 	window = gtk_application_get_active_window (GTK_APPLICATION (self));
 
-	adw_show_about_window (window,
+	adw_show_about_dialog (window,
 	                       "application-name", "gis",
 	                       "application-icon", "org.gnome.gis",
 	                       "developer-name", "koro",
@@ -88,6 +98,8 @@ gis_application_about_action (GSimpleAction *action,
 	                       "developers", developers,
 	                       "copyright", "© 2024 koro",
 	                       NULL);
+
+        //adw_show_about_dialog (GtkWidget *parent, const char *first_property_name, ..., NULL)
 }
 
 static void
@@ -108,8 +120,51 @@ static const GActionEntry app_actions[] = {
 };
 
 static void
+change_color_scheme (GSimpleAction  *action,
+                     GVariant       *new_state,
+                     GisApplication *self)
+{
+        gboolean dark_mode = g_variant_get_boolean (new_state);
+        AdwStyleManager *style_manager = adw_style_manager_get_default ();
+
+        if (dark_mode)
+                adw_style_manager_set_color_scheme (style_manager, ADW_COLOR_SCHEME_FORCE_DARK);
+        else
+                adw_style_manager_set_color_scheme (style_manager, ADW_COLOR_SCHEME_DEFAULT);
+        g_simple_action_set_state (action, new_state);
+        g_settings_set_boolean (self->settings, "dark-mode", dark_mode);
+}
+
+static void
+toggle_dark_mode (GSimpleAction *action,
+                  GVariant      *parameter G_GNUC_UNUSED,
+                  gpointer       user_data G_GNUC_UNUSED)
+{
+        GVariant *state = g_action_get_state (G_ACTION (action));
+        gboolean old_state = g_variant_get_boolean (state);
+        gboolean new_state = !old_state;
+
+        g_action_change_state (G_ACTION (action), g_variant_new_boolean (new_state));
+        g_variant_unref (state);
+}
+
+static void
 gis_application_init (GisApplication *self)
 {
+        self->settings = g_settings_new ("org.gnome.gis");
+
+        gboolean dark_mode = g_settings_get_boolean (self->settings, "dark-mode");
+        AdwStyleManager *style_manager = adw_style_manager_get_default ();
+        if (dark_mode)
+                adw_style_manager_set_color_scheme (style_manager, ADW_COLOR_SCHEME_FORCE_DARK);
+        else
+                adw_style_manager_set_color_scheme (style_manager, ADW_COLOR_SCHEME_DEFAULT);
+
+        g_autoptr (GSimpleAction) dark_action = g_simple_action_new_stateful (
+                                                                        "dark-mode",
+                                                                        NULL,
+                                                                        g_variant_new_boolean (dark_mode));
+
 	g_action_map_add_action_entries (G_ACTION_MAP (self),
 	                                 app_actions,
 	                                 G_N_ELEMENTS (app_actions),
@@ -120,4 +175,8 @@ gis_application_init (GisApplication *self)
         gtk_application_set_accels_for_action (GTK_APPLICATION (self),
 	                                       "win.open",
 	                                       (const char *[]) { "<ctrl>o", NULL });
+        g_signal_connect (dark_action, "activate", G_CALLBACK (toggle_dark_mode), self);
+        g_signal_connect (dark_action, "change-state", G_CALLBACK (change_color_scheme), self);
+        g_action_map_add_action (G_ACTION_MAP (self), G_ACTION (dark_action));
 }
+
